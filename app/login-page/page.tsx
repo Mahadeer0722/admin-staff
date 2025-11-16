@@ -7,98 +7,75 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    try {
-      const dbRef = ref(db);
-      const snapshot = await get(child(dbRef, "users"));
+    const snapshot = await get(child(ref(db), "users"));
+    if (!snapshot.exists()) return alert("No users found");
 
-      if (!snapshot.exists()) {
-        alert("No users found");
-        return;
+    let matchedUser: any = null;
+
+    snapshot.forEach((u) => {
+      const user = u.val();
+      if (user.email === email && user.password === password) {
+        matchedUser = user;
       }
+    });
 
-      let isValid = false;
-      let userRole = "";
+    if (!matchedUser) return alert("Invalid credentials");
 
-      snapshot.forEach((user) => {
-        const data = user.val();
-
-        if (data.email === email && data.password === password) {
-          isValid = true;
-          userRole = data.role; // staff or administrator
-        }
-      });
-
-      if (isValid) {
-        alert("Login successful!");
-
-        // ⭐ REDIRECT BASED ON ROLE
-        if (userRole === "administrator") {
-          router.push("/admin-page");
-        } else if (userRole === "staff") {
-          router.push("/staff-page");
-        } else {
-          alert("Unknown role in database!");
-        }
-
-      } else {
-        alert("Invalid email or password");
-      }
-
-    } catch (error) {
-      console.error(error);
-      alert("Login error");
+    if (matchedUser.role === "administrator") {
+      router.push("/admin-page");
+    } else {
+      router.push("/staff-page");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-3">
-      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl border border-gray-300">
-        <h2 className="text-3xl font-bold mb-6 text-center text-gray-900">
-          Login
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+      <div className="bg-white w-full max-w-md p-8 rounded-xl shadow-xl">
+        
+        <h2 className="text-3xl font-bold mb-6 text-center text-gray-900">Login</h2>
 
         <form onSubmit={handleLogin} className="space-y-5">
-          {/* EMAIL */}
-          <div>
-            <label className="block font-semibold text-gray-800 mb-1">Email</label>
-            <input
-              type="email"
-              className="w-full border border-gray-600 rounded-lg px-3 py-2 bg-gray-100 text-gray-900"
-              placeholder="Enter email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-          {/* PASSWORD */}
-          <div>
-            <label className="block font-semibold text-gray-800 mb-1">Password</label>
-            <input
-              type="password"
-              className="w-full border border-gray-600 rounded-lg px-3 py-2 bg-gray-100 text-gray-900"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          <input
+            type="password"
+            placeholder="Password"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
-          {/* SUBMIT */}
           <button
             type="submit"
-            className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800 transition shadow-md"
+            className="w-full bg-blue-700 text-white py-2 rounded-lg"
           >
-            Submit
+            Login
           </button>
         </form>
+
+        <div className="text-center mt-5">
+          <p className="text-gray-700">Don't have an account?</p>
+          <button
+            onClick={() => router.push("/singup-page")}
+            className="text-blue-600 font-semibold underline"
+          >
+            Create a new account
+          </button>
+        </div>
       </div>
     </div>
   );
