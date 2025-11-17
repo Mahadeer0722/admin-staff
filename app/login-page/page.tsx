@@ -89,7 +89,7 @@ export default function LoginPage() {
         <div className="text-center mt-5">
           <p className="text-gray-700">Don't have an account?</p>
           <button
-            onClick={() => router.push("/sign-up")}
+            onClick={() => router.push("/singup-page")}
             className="text-blue-600 font-semibold underline"
           >
             Create a new account

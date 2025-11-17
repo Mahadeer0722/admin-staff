@@ -44,7 +44,7 @@ export default function SignUpPage() {
           <input
             type="email"
             placeholder="Email"
-            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-900"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -69,7 +69,7 @@ export default function SignUpPage() {
           />
 
           <select
-            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-900"
             value={role}
             onChange={(e) => setRole(e.target.value)}
           >
