@@ -4,98 +4,82 @@ import { useEffect, useState } from "react";
 import { ref, onValue, get, set, remove } from "firebase/database";
 import { db } from "@/firebase/config";
 
+// Convert email (.) → (,) because Firebase path cannot use dots
+const fixKey = (email: string) => email.replace(/\./g, ",");
+
 export default function AdminPage() {
   const [staffData, setStaffData] = useState<any>({});
   const [scores, setScores] = useState<any>({});
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
 
+  // Load DB data
   useEffect(() => {
-    // Get all projects grouped by staff
+    // Load projects
     onValue(ref(db, "staff_projects"), (snapshot) => {
       const data = snapshot.val() || {};
       const grouped: any = {};
 
       Object.keys(data).forEach((key) => {
-        const proj = { id: key, ...data[key] };
+        const project = { id: key, ...data[key] };
 
-        if (!grouped[proj.staffName]) {
-          grouped[proj.staffName] = {
-            staffName: proj.staffName,
-            projects: [],
-          };
+        if (!grouped[project.staffName]) {
+          grouped[project.staffName] = { staffName: project.staffName, projects: [] };
         }
-        grouped[proj.staffName].projects.push(proj);
+
+        grouped[project.staffName].projects.push(project);
       });
 
       setStaffData(grouped);
     });
 
-    // Scores
+    // Load scores
     onValue(ref(db, "staff_scores"), (snapshot) => {
       setScores(snapshot.val() || {});
     });
   }, []);
 
-  // Toggle delete mode
-  const toggleDeleteMode = () => {
-    setDeleteMode(!deleteMode);
-    setSelectedStaff([]);
-  };
-
-  // Select or unselect staff
-  const handleCheckbox = (staffName: string) => {
-    if (selectedStaff.includes(staffName)) {
-      setSelectedStaff(selectedStaff.filter((s) => s !== staffName));
-    } else {
-      setSelectedStaff([...selectedStaff, staffName]);
-    }
-  };
-
-  // Delete selected staff + projects
-  const deleteSelected = async () => {
-    if (selectedStaff.length === 0) {
-      alert("Select at least one staff to delete.");
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete selected staff and all their projects?"
+  // Toggle selected checkbox
+  const toggleSelectStaff = (email: string) => {
+    setSelectedStaff((prev) =>
+      prev.includes(email) ? prev.filter((s) => s !== email) : [...prev, email]
     );
-    if (!confirmDelete) return;
+  };
 
-    for (const staffName of selectedStaff) {
-      // Delete staff's score
-      await remove(ref(db, `staff_scores/${staffName}`));
+  // DELETE staff & all projects
+  const handleDeleteSelected = async () => {
+    if (selectedStaff.length === 0) return alert("Please select a staff member.");
 
-      // Delete all projects belonging to staff
-      const projects = staffData[staffName]?.projects || [];
-      for (const proj of projects) {
+    if (!confirm("Are you sure you want to delete selected staff & all projects?")) return;
+
+    for (let email of selectedStaff) {
+      const safeKey = fixKey(email);
+
+      // delete score
+      await remove(ref(db, `staff_scores/${safeKey}`));
+
+      // delete projects
+      const projects = staffData[email]?.projects || [];
+      for (let proj of projects) {
         await remove(ref(db, `staff_projects/${proj.id}`));
       }
     }
 
-    alert("Selected staff and their projects deleted successfully.");
-    setSelectedStaff([]);
+    alert("Deleted successfully.");
     setDeleteMode(false);
+    setSelectedStaff([]);
   };
 
-  // Accept Project
-  const acceptProject = async (staffName: string, projectId: string) => {
+  // ACCEPT PROJECT
+  const handleAccept = async (email: string, projectId: string) => {
+    const safeKey = fixKey(email);
     const statusRef = ref(db, `staff_projects/${projectId}/status`);
-    const scoreRef = ref(db, `staff_scores/${staffName}/score`);
+    const scoreRef = ref(db, `staff_scores/${safeKey}/score`);
 
     const snap = await get(statusRef);
     const currentStatus = snap.exists() ? snap.val() : "pending";
 
-    if (currentStatus === "accepted") {
-      alert("Already accepted.");
-      return;
-    }
-    if (currentStatus === "rejected") {
-      alert("Cannot accept rejected project.");
-      return;
-    }
+    if (currentStatus !== "pending") return;
 
     await set(statusRef, "accepted");
 
@@ -103,29 +87,17 @@ export default function AdminPage() {
     const currentScore = scoreSnap.exists() ? scoreSnap.val() : 0;
 
     await set(scoreRef, currentScore + 1);
-
-    alert("Accepted +1 score");
   };
 
-  // Reject Project
-  const rejectProject = async (projectId: string) => {
+  // REJECT PROJECT
+  const handleReject = async (projectId: string) => {
     const statusRef = ref(db, `staff_projects/${projectId}/status`);
-
     const snap = await get(statusRef);
     const currentStatus = snap.exists() ? snap.val() : "pending";
 
-    if (currentStatus === "rejected") {
-      alert("Already rejected.");
-      return;
-    }
-    if (currentStatus === "accepted") {
-      alert("Cannot reject an accepted project.");
-      return;
-    }
+    if (currentStatus !== "pending") return;
 
     await set(statusRef, "rejected");
-
-    alert("Rejected.");
   };
 
   return (
@@ -135,49 +107,51 @@ export default function AdminPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-4xl font-bold">Admin Dashboard</h1>
 
-        {/* Delete Button */}
         <button
-          onClick={toggleDeleteMode}
+          onClick={() => {
+            setDeleteMode(!deleteMode);
+            setSelectedStaff([]);
+          }}
           className="bg-red-600 px-4 py-2 rounded font-semibold hover:bg-red-700"
         >
-          {deleteMode ? "Cancel Delete" : "Delete"}
+          {deleteMode ? "Cancel" : "Delete"}
         </button>
       </div>
 
-      {/* Delete Selected Button */}
-      {deleteMode && selectedStaff.length > 0 && (
+      {/* Delete Action */}
+      {deleteMode && (
         <button
-          onClick={deleteSelected}
-          className="mb-4 bg-red-700 px-4 py-2 rounded font-semibold hover:bg-red-800"
+          onClick={handleDeleteSelected}
+          className="bg-red-700 mb-4 px-4 py-2 rounded font-semibold hover:bg-red-800"
         >
           Delete Selected ({selectedStaff.length})
         </button>
       )}
 
-      {/* Staff Cards */}
+      {/* Staff List */}
       {Object.values(staffData).map((staff: any) => {
-        const staffName = staff.staffName;
-        const rejectedCount = staff.projects.filter((p: any) => p.status === "rejected").length;
-        const submittedCount = staff.projects.length;
-        const score = scores[staffName]?.score || 0;
+        const email = staff.staffName;
+        const projects = staff.projects;
+        const safeKey = fixKey(email);
+        const score = scores[safeKey]?.score || 0;
+        const rejectedCount = projects.filter((p: any) => p.status === "rejected").length;
+        const submittedCount = projects.length;
 
         return (
-          <div key={staffName} className="bg-white text-gray-900 p-5 rounded-xl shadow-lg mb-6">
-
+          <div key={email} className="bg-white text-gray-900 p-5 rounded-xl shadow-lg mb-6">
+            
             {/* Staff Header */}
             <div className="flex justify-between items-center mb-3">
-
-              <div className="flex items-center gap-3">
+              <div className="flex gap-3 items-center">
                 {deleteMode && (
                   <input
                     type="checkbox"
-                    checked={selectedStaff.includes(staffName)}
-                    onChange={() => handleCheckbox(staffName)}
+                    checked={selectedStaff.includes(email)}
+                    onChange={() => toggleSelectStaff(email)}
                     className="w-5 h-5"
                   />
                 )}
-
-                <h2 className="text-2xl font-bold">{staffName}</h2>
+                <h2 className="text-xl font-bold">{email}</h2>
               </div>
 
               <div className="text-right">
@@ -187,26 +161,24 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Projects List */}
-            {staff.projects.map((proj: any) => (
-              <div
-                key={proj.id}
-                className="bg-gray-100 p-3 rounded border border-gray-300 mb-3"
-              >
+            {/* Project List */}
+            {projects.map((proj: any) => (
+              <div key={proj.id} className="bg-gray-100 p-3 rounded border mb-3">
+
                 <p><strong>Project:</strong> {proj.projectName}</p>
                 <p><strong>Status:</strong> {proj.status}</p>
 
+                {/* Accept & Reject Buttons */}
                 {proj.status === "pending" && !deleteMode && (
-                  <div className="mt-2 flex gap-3">
+                  <div className="mt-2 flex gap-4">
                     <button
-                      onClick={() => acceptProject(staffName, proj.id)}
+                      onClick={() => handleAccept(email, proj.id)}
                       className="bg-green-600 px-4 py-1 rounded text-white hover:bg-green-700"
                     >
                       Accept
                     </button>
-
                     <button
-                      onClick={() => rejectProject(proj.id)}
+                      onClick={() => handleReject(proj.id)}
                       className="bg-red-600 px-4 py-1 rounded text-white hover:bg-red-700"
                     >
                       Reject
@@ -215,13 +187,12 @@ export default function AdminPage() {
                 )}
 
                 {proj.status !== "pending" && (
-                  <p className="text-sm text-gray-600 italic mt-2">
-                    Action completed
+                  <p className="text-sm italic text-gray-600 mt-2">
+                    Action Completed
                   </p>
                 )}
               </div>
             ))}
-
           </div>
         );
       })}

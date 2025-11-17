@@ -53,7 +53,7 @@ export default function SignUpPage() {
           <input
             type="password"
             placeholder="Password"
-            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-900"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -62,7 +62,7 @@ export default function SignUpPage() {
           <input
             type="password"
             placeholder="Confirm Password"
-            className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+            className="w-full border rounded-lg px-3 py-2 bg-gray-900"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
